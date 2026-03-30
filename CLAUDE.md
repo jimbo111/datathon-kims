@@ -35,7 +35,7 @@ Research question: How do food access, income, and race independently and jointl
 
 ### Notebooks (`notebooks/`)
 - `2kim_health_notebook.ipynb` — Regional datathon submission (Phases 2-5).
-- `2kim_national_notebook.ipynb` — National competition submission (Phases 2-5 + spatial, causal, mediation, ML, robustness).
+- `2kim_health_notebook_v2.ipynb` — Extended submission (Phases 2-5 + spatial, causal, mediation, ML, robustness).
 
 ## Key Data Conventions
 - **Join key:** `tract_fips` (11-digit string, zero-padded).

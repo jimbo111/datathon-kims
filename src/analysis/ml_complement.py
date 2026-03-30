@@ -186,7 +186,7 @@ def run_xgboost_diabetes(
     # Pass feature names so XGBoost uses them in importance dicts (avoids f0/f1 keys)
     df_X = pd.DataFrame(X, columns=available_features)
     console.print("  Fitting final model on full dataset…")
-    final_model = xgb.XGBRegressor(**params, verbosity=0)
+    final_model = xgb.XGBRegressor(**params)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         final_model.fit(df_X, y, verbose=False)

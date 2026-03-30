@@ -39,7 +39,7 @@ export default function HealthSummaryTable() {
               <td className={row.obesity_rate > 35 ? "cell-bad" : ""}>{row.obesity_rate}%</td>
               <td>${row.median_income.toLocaleString()}</td>
               <td className={row.life_expectancy < 76 ? "cell-bad" : ""}>{row.life_expectancy}</td>
-              <td>{row.pcp_per_100k}</td>
+              <td>{row.pcp_per_100k ?? "N/A"}</td>
             </tr>
           ))}
         </tbody>

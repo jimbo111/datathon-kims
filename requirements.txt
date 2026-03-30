@@ -34,3 +34,15 @@ openai>=1.40
 tqdm>=4.66
 python-dotenv>=1.0
 rich>=13.7             # Pretty terminal output
+
+# Spatial analysis (Phase 6A)
+geopandas>=0.14
+libpysal>=4.10
+esda>=2.5
+spreg>=1.6
+mgwr>=2.2
+mapclassify>=2.7
+
+# ML complement (Phase 6D)
+xgboost>=2.0
+shap>=0.45

@@ -1,12 +1,38 @@
 """Data endpoints — load, query, and inspect health datasets."""
 
-from fastapi import APIRouter, Query
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from backend.services.data_service import get_data_service
 
 router = APIRouter()
 data_svc = get_data_service()
+
+# ── Security: resolve DATA_DIR for path traversal validation ──
+DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+
+
+def _validate_filename(filename: str, subdir: str) -> None:
+    """Reject filenames containing path traversal sequences.
+
+    Raises HTTPException 400 if:
+    - filename contains '..' or '/'
+    - resolved path escapes DATA_DIR/subdir
+    """
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid filename '{filename}': path separators and '..' are not allowed.",
+        )
+    resolved = (DATA_DIR / subdir / filename).resolve()
+    allowed_root = (DATA_DIR / subdir).resolve()
+    if not str(resolved).startswith(str(allowed_root)):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid filename '{filename}': resolved path escapes the data directory.",
+        )
 
 
 @router.get("/datasets")
@@ -18,6 +44,7 @@ async def list_datasets():
 @router.post("/load/{filename}")
 async def load_dataset(filename: str, subdir: str = Query("raw")):
     """Load a dataset into memory."""
+    _validate_filename(filename, subdir)
     data_svc.load(filename, subdir=subdir)
     return {"loaded": filename, "shape": list(data_svc.current_shape())}
 

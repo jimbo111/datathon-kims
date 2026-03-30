@@ -18,23 +18,30 @@ export default function Dashboard() {
   const [info, setInfo] = useState(null);
   const [preview, setPreview] = useState(null);
   const [cols, setCols] = useState({ numeric: [], categorical: [], datetime: [] });
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
     listDatasets().then(setDatasets).catch(console.error);
   }, []);
 
   const handleLoad = async (filename, subdir) => {
-    const result = await loadDataset(filename, subdir);
-    setLoaded({ name: filename, shape: result.shape });
+    setLoadError(null);
+    try {
+      const result = await loadDataset(filename, subdir);
+      setLoaded({ name: filename, shape: result.shape });
 
-    const [infoRes, headRes, colRes] = await Promise.all([
-      getDataInfo(),
-      getDataHead(20),
-      getColumns(),
-    ]);
-    setInfo(infoRes);
-    setPreview(headRes);
-    setCols(colRes);
+      const [infoRes, headRes, colRes] = await Promise.all([
+        getDataInfo(),
+        getDataHead(20),
+        getColumns(),
+      ]);
+      setInfo(infoRes);
+      setPreview(headRes);
+      setCols(colRes);
+    } catch (err) {
+      setLoadError(err?.response?.data?.detail ?? err.message ?? "Failed to load dataset");
+      setLoaded(null);
+    }
   };
 
   return (
@@ -42,6 +49,13 @@ export default function Dashboard() {
       <header>
         <h1>Datathon 2026 — Team 2Kim</h1>
       </header>
+
+      {/* Load error banner */}
+      {loadError && (
+        <div className="error-banner" role="alert">
+          <strong>Error loading dataset:</strong> {loadError}
+        </div>
+      )}
 
       {/* Dataset selector */}
       <section className="panel">

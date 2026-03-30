@@ -32,10 +32,26 @@ _SESSION.headers.update({"User-Agent": "Mozilla/5.0 (Datathon Research)"})
 
 # ─── USDA Food Access Research Atlas ──────────────────────────────────────────
 
-USDA_URL = (
-    "https://www.ers.usda.gov/media/5627/"
-    "food-access-research-atlas-data-download-2019.zip?v=47524"
-)
+# USDA Food Access Atlas URLs by year.
+# Known data years: 2015, 2019 (2010 is the oldest available, 2019 is current).
+# Add additional year URLs here as USDA publishes new editions.
+# NOTE: 2015 and earlier editions used a different column schema; USDA_KEEP
+# will need to be extended/versioned before 2015 support is production-ready.
+USDA_URLS: dict[int, str] = {
+    2019: (
+        "https://www.ers.usda.gov/media/5627/"
+        "food-access-research-atlas-data-download-2019.zip?v=47524"
+    ),
+    # 2015 URL scaffold — verify and update if USDA republishes this dataset.
+    # Column names and structure may differ from the 2019 edition.
+    2015: (
+        "https://www.ers.usda.gov/media/8282/"
+        "food-access-research-atlas-data-download-2015.zip"
+    ),
+}
+_USDA_DEFAULT_YEAR = 2019
+
+USDA_URL = USDA_URLS[_USDA_DEFAULT_YEAR]  # backward-compatible alias
 USDA_DIR = DATA_RAW / "food_atlas"
 
 USDA_KEEP = {
@@ -59,28 +75,62 @@ USDA_KEEP = {
 }
 
 
-def download_usda() -> Path:
-    """Download and extract the USDA Food Access Atlas ZIP."""
-    USDA_DIR.mkdir(parents=True, exist_ok=True)
-    if any(USDA_DIR.glob("*.xlsx")) or any(USDA_DIR.glob("*.csv")):
-        console.print("[yellow]USDA: already downloaded, skipping.[/]")
-        return USDA_DIR
+def download_usda(year: int = _USDA_DEFAULT_YEAR) -> Path:
+    """Download and extract the USDA Food Access Atlas ZIP.
 
-    console.print("[cyan]Downloading USDA Food Access Research Atlas (~9 MB)...[/]")
-    resp = _SESSION.get(USDA_URL, timeout=180)
+    Parameters
+    ----------
+    year : int
+        Data year to download. Supported years are keys of ``USDA_URLS``
+        (currently 2019 and 2015). Defaults to 2019.
+
+        IMPORTANT — multi-year support is scaffolded only:
+        - 2015 URL has not been verified against live USDA servers.
+        - Column schemas differ between years; ``USDA_KEEP`` is calibrated
+          for 2019. Using year=2015 may fail or silently drop columns until
+          a year-specific column map is added.
+        - Each year is stored in its own sub-directory to avoid collisions.
+    """
+    if year not in USDA_URLS:
+        raise ValueError(
+            f"Unsupported USDA year {year!r}. Available years: {sorted(USDA_URLS)}"
+        )
+    url = USDA_URLS[year]
+    dest_dir = DATA_RAW / f"food_atlas_{year}" if year != _USDA_DEFAULT_YEAR else USDA_DIR
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    if any(dest_dir.glob("*.xlsx")) or any(dest_dir.glob("*.csv")):
+        console.print(f"[yellow]USDA {year}: already downloaded, skipping.[/]")
+        return dest_dir
+
+    console.print(f"[cyan]Downloading USDA Food Access Research Atlas {year} (~9 MB)...[/]")
+    resp = _SESSION.get(url, timeout=180)
     resp.raise_for_status()
     with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
-        z.extractall(USDA_DIR)
-    console.print(f"[green]USDA extracted → {USDA_DIR}[/]")
-    return USDA_DIR
+        z.extractall(dest_dir)
+    console.print(f"[green]USDA {year} extracted → {dest_dir}[/]")
+    return dest_dir
 
 
-def load_usda() -> pd.DataFrame:
-    """Load and clean USDA Food Access Atlas → one row per tract."""
-    download_usda()
+def load_usda(year: int = _USDA_DEFAULT_YEAR) -> pd.DataFrame:
+    """Load and clean USDA Food Access Atlas → one row per tract.
 
-    xlsx = list(USDA_DIR.rglob("*.xlsx"))
-    csv = sorted(USDA_DIR.rglob("*.csv"), key=lambda f: f.stat().st_size, reverse=True)
+    Parameters
+    ----------
+    year : int
+        Data year to load. Defaults to 2019 (the production year used throughout
+        the analysis pipeline). Pass year=2015 to load the 2015 edition.
+
+        IMPORTANT — multi-year support is scaffolded only:
+        Column names in the 2015 edition may differ from ``USDA_KEEP``; any
+        unmapped columns are silently skipped. Full 2015 support requires a
+        year-specific column mapping added to ``USDA_URLS`` / ``USDA_KEEP``.
+        Calling load_usda() with no arguments preserves existing behaviour.
+    """
+    dest_dir = download_usda(year=year)
+
+    xlsx = list(dest_dir.rglob("*.xlsx"))
+    csv = sorted(dest_dir.rglob("*.csv"), key=lambda f: f.stat().st_size, reverse=True)
     if xlsx:
         console.print(f"[cyan]Reading {xlsx[0].name} (may take ~30s)...[/]")
         df = pd.read_excel(xlsx[0], sheet_name=0, engine="openpyxl")
@@ -89,7 +139,7 @@ def load_usda() -> pd.DataFrame:
         console.print(f"[cyan]Reading {csv[0].name}...[/]")
         df = pd.read_csv(csv[0])
     else:
-        raise FileNotFoundError(f"No data files in {USDA_DIR}")
+        raise FileNotFoundError(f"No data files in {dest_dir}")
 
     available = {k: v for k, v in USDA_KEEP.items() if k in df.columns}
     df = df[list(available.keys())].rename(columns=available)
@@ -99,7 +149,7 @@ def load_usda() -> pd.DataFrame:
     if "group_quarters_flag" in df.columns:
         df = df[df["group_quarters_flag"] == 0].drop(columns=["group_quarters_flag"])
 
-    console.print(f"[green]USDA: {df.shape[0]:,} tracts × {df.shape[1]} cols[/]")
+    console.print(f"[green]USDA {year}: {df.shape[0]:,} tracts × {df.shape[1]} cols[/]")
     return df
 
 
